@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <title>Project Details - Abdullah Al Mamun</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="project-details.js" defer></script>
+</head>
+<body>
+    <header class="header">
+        <a href="index.html" class="logo neon-glow">Al Mamun</a>
+        
+        <div class="menu-btn">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+        <nav class="navbar">
+            <a href="index.html#home" style="--i:1;">Home</a>
+            <a href="index.html#skills" style="--i:2;">Skills</a>
+            <a href="index.html#education" style="--i:3;">Education</a>
+            <a href="index.html#projects" class="active" style="--i:4;">Projects</a>
+            <a href="index.html#contact" style="--i:5;">Contact</a>
+        </nav>
+    </header>
+
+    <section class="project-details" id="project-details">
+        <div class="back-button">
+            <a href="index.html#projects" class="btn neon-glow"><i class="fas fa-arrow-left"></i> Back to Projects</a>
+        </div>
+        <div id="project-content" class="neon-box-glow">
+            <!-- Project details will be loaded dynamically via JavaScript -->
+            <div class="loading">
+                <span class="neon-glow">Loading project details...</span>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2023 Abdullah Al Mamun. All Rights Reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
