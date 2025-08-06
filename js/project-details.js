@@ -33,7 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             <h2 class="heading">${project.title} <span class="neon-glow">Details</span></h2>
             
             <div class="project-image">
-                <img src="../assets/project-${projectId}.jpg" alt="${project.title}" class="neon-box-glow">
+                ${project.imageUrl ? 
+                `<img src="${project.imageUrl}" alt="${project.title}" class="neon-box-glow">` : 
+                `<img src="../images/project-${projectId}.jpg" alt="${project.title}" class="neon-box-glow">`}
             </div>
             
             <div class="project-details-content">

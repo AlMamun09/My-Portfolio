@@ -119,14 +119,19 @@ document.addEventListener('DOMContentLoaded', function() {
         loadMoreBtn.addEventListener('click', function() {
             console.log('Load More button clicked, current state:', projectsExpanded);
             
-            if (!projectsExpanded) {
+            // Toggle the expanded state
+            projectsExpanded = !projectsExpanded;
+            
+            if (projectsExpanded) {
+                // Show all projects
+                console.log('Expanding to show all projects:', allProjects.length);
                 renderProjects(allProjects.length);
                 loadMoreBtn.textContent = 'Show Less';
-                projectsExpanded = true;
             } else {
+                // Show only the first 3 projects
+                console.log('Collapsing to show only 3 projects');
                 renderProjects(3);
                 loadMoreBtn.textContent = 'Load More';
-                projectsExpanded = false;
 
                 // Scroll back to the projects section
                 const projectsSection = document.getElementById('projects');
@@ -137,65 +142,163 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
             }
+            
+            // Update button visibility based on project count
             updateButtonVisibility();
         });
     }
+
+    // Variable to store the unsubscribe function for the projects listener
+    let unsubscribeProjects = null;
 
     function setupProjectsListener() {
-        const projectsCollection = collection(db, 'projects');
-        const q = query(projectsCollection);
-
-        onSnapshot(q, (projectsSnapshot) => {
-            allProjects = [];
-            projectsSnapshot.forEach(doc => {
-                allProjects.push({ id: doc.id, ...doc.data() });
-            });
-
-            // Sort projects by createdAt desc, falling back to updatedAt if createdAt is missing
-            allProjects.sort((a, b) => {
-                const dateA = a.createdAt ? a.createdAt.toMillis() : (a.updatedAt ? a.updatedAt.toMillis() : 0);
-                const dateB = b.createdAt ? b.createdAt.toMillis() : (b.updatedAt ? b.updatedAt.toMillis() : 0);
-                return dateB - dateA;
-            });
-
-            renderProjects(projectsExpanded ? allProjects.length : 3);
-            updateButtonVisibility();
-        });
+    // Clean up previous listener if it exists
+    if (unsubscribeProjects) {
+        unsubscribeProjects();
+        unsubscribeProjects = null;
+    }
+    
+    const projectsCollection = collection(db, 'projects');
+    const q = query(projectsCollection, orderBy('order', 'asc'));
+    const loadingIndicator = document.getElementById('projects-loading');
+    
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
     }
 
+    try {
+        unsubscribeProjects = onSnapshot(q, 
+            (projectsSnapshot) => {
+                // Success handler
+                allProjects = [];
+                projectsSnapshot.forEach(doc => {
+                    allProjects.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Projects are already sorted by order in the query
+                // No need for additional sorting here
+
+                console.log('Projects loaded from Firestore:', allProjects.length, 'projects');
+                
+                // Reset expanded state when projects are loaded
+                projectsExpanded = false;
+                
+                // Render initial projects (limited to 3)
+                renderProjects(3);
+                
+                // Update button visibility and text
+                updateButtonVisibility();
+            },
+            (error) => {
+                // Error handler
+                console.error('Error in projects listener:', error);
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
+                const projectsContainer = document.querySelector('.projects-container');
+                if (projectsContainer) {
+                    projectsContainer.innerHTML = `
+                        <div class="error-message">
+                            <h3>Error Loading Projects</h3>
+                            <p>Error: ${error.message}</p>
+                            <button id="retry-projects" class="btn neon-glow">Retry</button>
+                        </div>
+                    `;
+                    
+                    document.getElementById('retry-projects')?.addEventListener('click', () => {
+                        setupProjectsListener();
+                    });
+                }
+            }
+        );
+    } catch (error) {
+        console.error('Failed to set up projects listener:', error);
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        return null;
+    }
+}
+
     function renderProjects(limitCount) {
+        console.log(`renderProjects called with limitCount: ${limitCount}`);
+        
         const loadingIndicator = document.getElementById('projects-loading');
         if (loadingIndicator) {
             loadingIndicator.style.display = 'none';
         }
 
         const projectsContainer = document.querySelector('.projects-container');
-        if (!projectsContainer) return;
+        if (!projectsContainer) {
+            console.error('Projects container not found in the DOM');
+            return;
+        }
 
+        console.log(`Before clearing, container has children: ${projectsContainer.children.length}`);
+        
         // Clear existing projects
         projectsContainer.innerHTML = '';
+        
+        console.log(`After clearing, container has children: ${projectsContainer.children.length}`);
 
         // Take only the first limitCount projects after sorting
         const displayedProjects = allProjects.slice(0, limitCount);
+        
+        // Debug output
+        console.log(`Rendering ${displayedProjects.length} projects out of ${allProjects.length} total, expanded state: ${projectsExpanded}`);
 
         // Create and append project cards
-        displayedProjects.forEach((project, index) => {
-            try {
-                const newCard = createProjectCard(project, project.id, index);
-                projectsContainer.appendChild(newCard);
-                console.log(`Added project card: ${project.title || 'Untitled Project'}`);
-            } catch (err) {
-                console.error('Error creating project card:', err, 'Project:', project);
-            }
-        });
+        if (displayedProjects.length === 0) {
+            projectsContainer.innerHTML = '<div class="no-projects">No projects found</div>';
+        } else {
+            displayedProjects.forEach((project, index) => {
+                try {
+                    const newCard = createProjectCard(project, project.id, index);
+                    projectsContainer.appendChild(newCard);
+                    console.log(`Added project card: ${project.title || 'Untitled Project'}`);
+                } catch (err) {
+                    console.error('Error creating project card:', err, 'Project:', project);
+                    // Add an error card instead of failing silently
+                    projectsContainer.appendChild(createErrorCard('Error loading this project'));
+                }
+            });
+        }
     }
 
     function updateButtonVisibility() {
         const loadMoreBtn = document.getElementById('load-more-btn');
         if (loadMoreBtn) {
-            loadMoreBtn.style.display = (allProjects.length > 3) ? 'inline-block' : 'none';
+            // Only show the button if there are more than 3 projects
+            if (allProjects.length > 3) {
+                loadMoreBtn.style.display = 'inline-block';
+                // Update button text based on current state
+                loadMoreBtn.textContent = projectsExpanded ? 'Show Less' : 'Load More';
+            } else {
+                loadMoreBtn.style.display = 'none';
+            }
+            console.log('Button visibility updated, projects count:', allProjects.length, 'expanded:', projectsExpanded);
         }
     }
+    
+    // Helper function to create error cards when project loading fails
+    function createErrorCard(message) {
+        const errorCard = document.createElement('div');
+        errorCard.className = 'project-card neon-box-glow error-card';
+        errorCard.innerHTML = `
+            <div class="project-header">
+                <h3>Error Loading Project</h3>
+            </div>
+            <p>${message || 'There was an error loading this project. Please try refreshing the page.'}</p>
+        `;
+        return errorCard;
+    }
+    
+    // Clean up listeners when page unloads
+    window.addEventListener('beforeunload', () => {
+        if (unsubscribeProjects) {
+            unsubscribeProjects();
+        }
+    });
 });
 
 
@@ -412,7 +515,7 @@ function loadSampleProjects(container) {
 }
 
 // Test Firebase connection and collection access
-function testFirebaseConnection() {
+async function testFirebaseConnection() {
     try {
         console.log('Testing Firebase connection...');
         console.log('Database instance available:', !!db);
@@ -428,11 +531,29 @@ function testFirebaseConnection() {
             return false;
         }
         
-        // Test basic collection access
-        const testCollection = collection(db, 'projects');
-        console.log('Collection reference created:', !!testCollection);
+        // Create a timeout promise that rejects after 5 seconds
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(new Error('Connection test timed out after 5 seconds'));
+            }, 5000);
+        });
         
-        return true;
+        // Create the connection test promise
+        const connectionPromise = async () => {
+            const testCollection = collection(db, 'projects');
+            console.log('Collection reference created:', !!testCollection);
+            const snapshot = await getDocs(testCollection);
+            console.log('Connection test successful, documents:', snapshot.size);
+            return true;
+        };
+        
+        // Race the connection test against the timeout
+        const result = await Promise.race([
+            connectionPromise(),
+            timeoutPromise
+        ]);
+        
+        return result; // This will be true if connectionPromise resolves first
         
     } catch (error) {
         console.error('Firebase connection test failed:', error);
@@ -483,29 +604,39 @@ function createProjectCard(project, id, index = 0) {
             return document.createElement('div'); // Return empty div to avoid errors
         }
         
+        // Validate project fields with defaults
+        const validatedProject = {
+            title: project.title || 'Untitled Project',
+            description: project.description || 'No description available',
+            technologies: Array.isArray(project.technologies) ? project.technologies : [],
+            github: project.github || '#',
+            demo: project.demo || '#',
+            id: id || 'unknown'
+        };
+        
         const card = document.createElement('div');
         card.className = 'project-card neon-box-glow';
-        card.setAttribute('data-id', id || 'unknown');
+        card.setAttribute('data-id', validatedProject.id);
 
         // Log project data for debugging
         console.log('Creating project card:', {
-            id: id,
-            title: project.title,
-            techCount: Array.isArray(project.technologies) ? project.technologies.length : 0
+            id: validatedProject.id,
+            title: validatedProject.title,
+            techCount: validatedProject.technologies.length
         });
 
         card.innerHTML = `
             <div class="project-header">
-                <h3>${project.title || 'Untitled Project'}</h3>
-                <a href="pages/project-details.html?id=${id}" class="details-btn"><i class="fa-solid fa-circle-info"></i>&nbsp;Details</a>
+                <h3>${validatedProject.title}</h3>
+                <a href="pages/project-details.html?id=${validatedProject.id}" class="details-btn"><i class="fa-solid fa-circle-info"></i>&nbsp;Details</a>
             </div>
-            <p>${project.description || 'No description available'}</p>
+            <p>${validatedProject.description}</p>
             <div class="project-tech">
-                ${Array.isArray(project.technologies) ? project.technologies.map(tech => `<span>${tech}</span>`).join('') : ''}
+                ${validatedProject.technologies.map(tech => `<span>${tech}</span>`).join('')}
             </div>
             <div class="project-links">
-                <a href="${project.github || '#'}" class="${!project.github || project.github === '#' ? 'disabled-link' : ''}" ${!project.github || project.github === '#' ? 'onclick="event.preventDefault(); alert(\'GitHub link not added yet\');"' : ''}><i class="fa-brands fa-github"></i> View Code</a>
-                <a href="${project.demo || '#'}" class="${!project.demo || project.demo === '#' ? 'disabled-link' : ''}" ${!project.demo || project.demo === '#' ? 'onclick="event.preventDefault(); alert(\'Demo link not added yet\');"' : ''}><i class="fa-solid fa-arrow-up-right-from-square"></i> Live Demo</a>
+                <a href="${validatedProject.github}" class="${validatedProject.github === '#' ? 'disabled-link' : ''}" ${validatedProject.github === '#' ? 'onclick="event.preventDefault(); alert(\'GitHub link not added yet\');"' : ''}><i class="fa-brands fa-github"></i> View Code</a>
+                <a href="${validatedProject.demo}" class="${validatedProject.demo === '#' ? 'disabled-link' : ''}" ${validatedProject.demo === '#' ? 'onclick="event.preventDefault(); alert(\'Demo link not added yet\');"' : ''}><i class="fa-solid fa-arrow-up-right-from-square"></i> Live Demo</a>
             </div>
         `;
 
@@ -604,7 +735,7 @@ async function updateSkillsFromFirestore(maxItems = 10) {
         console.log('Attempting to fetch skills from Firestore...');
         const skillsCollection = collection(db, 'skills');
         console.log('Skills collection reference created');
-        const q = query(skillsCollection, maxItems ? limit(maxItems) : limit(100));
+        const q = query(skillsCollection, orderBy("order", "asc"), maxItems ? limit(maxItems) : limit(100));
         console.log('Skills query created');
         const skillsSnapshot = await getDocs(q);
         console.log('Skills snapshot received, doc count:', skillsSnapshot.size);
@@ -629,11 +760,26 @@ async function updateSkillsFromFirestore(maxItems = 10) {
         skillsByCategory.forEach((skills, category) => {
             const newBox = document.createElement('div');
             newBox.className = 'skills-box neon-box-glow';
+            
+            // Check if skills is an array of strings or objects with skillsOrder
+            let skillsToRender = skills;
+            
+            // If we have a skillsOrder array, use it for ordering
+            const skillData = skillsSnapshot.docs.find(doc => doc.data().categoryName === category)?.data();
+            if (skillData && skillData.skillsOrder && Array.isArray(skillData.skillsOrder)) {
+                // Use the skillsOrder array for ordering
+                skillsToRender = skillData.skillsOrder.sort((a, b) => a.order - b.order).map(item => item.name);
+            }
+            
             newBox.innerHTML = `
                 <i class="fas fa-tools"></i>
                 <h3>${category}</h3>
                 <div class="skills-content">
-                    ${skills.map(skill => `<span>${skill}</span>`).join('')}
+                    ${skillsToRender.map(skill => {
+                        // Handle both string and object formats
+                        const skillName = typeof skill === 'string' ? skill : skill.name;
+                        return `<span>${skillName}</span>`;
+                    }).join('')}
                 </div>
             `;
             skillsContainer.appendChild(newBox);
@@ -683,7 +829,7 @@ async function updateEducationFromFirestore(maxItems = 10) {
         console.log('Attempting to fetch education from Firestore...');
         const educationCollection = collection(db, 'education');
         console.log('Education collection reference created');
-        const q = query(educationCollection, orderBy('year', 'desc'), maxItems ? limit(maxItems) : limit(100));
+        const q = query(educationCollection, orderBy('order', 'asc'), maxItems ? limit(maxItems) : limit(100));
         console.log('Education query created');
         const educationSnapshot = await getDocs(q);
         console.log('Education snapshot received, doc count:', educationSnapshot.size);

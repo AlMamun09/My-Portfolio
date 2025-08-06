@@ -1,0 +1,21 @@
+{
+  "name": "al-mamun-portfolio",
+  "version": "1.0.0",
+  "description": "Al Mamun's Portfolio Website",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "build": "node build.js",
+    "vercel-build": "npm run build"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "firebase": "^9.0.0"
+  },
+  "devDependencies": {},
+  "author": "Al Mamun",
+  "license": "MIT"
+}

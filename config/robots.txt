@@ -1,0 +1,5 @@
+# robots.txt file for Al Mamun's Portfolio
+User-agent: *
+Allow: /
+Disallow: /pages/admin.html
+Disallow: /pages/login.html

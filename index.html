@@ -9,7 +9,10 @@
     <title>Abdullah Al Mamun - Portfolio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    </noscript>
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
@@ -26,8 +29,8 @@
 
         <nav class="navbar">
             <a href="#home" class="active" style="--i:1;">Home</a>
-            <a href="#skills" style="--i:2;">Skills</a>
-            <a href="#education" style="--i:3;">Education</a>
+            <a href="#education" style="--i:2;">Education</a>
+            <a href="#skills" style="--i:3;">Skills</a>
             <a href="#projects" style="--i:4;">Projects</a>
             <a href="#contact" style="--i:5;">Contact</a>
             <a href="#" id="admin-link" style="--i:6;">Admin</a>
@@ -35,7 +38,7 @@
     </header>
     <section class="home" id="home">
         <div class="home-img">
-            <img src="assets/main.png" alt="Abdullah Al Mamun">
+            <img src="images/main.png" alt="Abdullah Al Mamun">
         </div>
         <div class="home-content">
             <h1 class="neon-glow">Hi! I'm</h1>
@@ -45,18 +48,10 @@
             <div class="social-icons">
                 <a href="https://www.linkedin.com/in/abdullah-al-mamun-cse/" target="_blank"><i class="fa-brands fa-linkedin"></i></a>
                 <a href="https://github.com/almamun-cse" target="_blank"><i class="fa-brands fa-github"></i></a>
-                <a href="#" target="_blank"><i class="fa-brands fa-twitter"></i></a>
+                <a href="#" target="_blank"><i class="fa-brands fa-facebook"></i></a>
                 <a href="#" target="_blank"><i class="fa-brands fa-instagram"></i></a>
-                <a href="assets/resume.pdf" class="btn neon-glow" download>Download CV</a>
+                <a href="documents/resume.pdf" class="btn neon-glow" download>Download CV</a>
             </div>
-        </div>
-    </section>
-
-    <!-- Skills Section -->
-    <section class="skills" id="skills">
-        <h2 class="heading">My <span class="neon-glow">Skills</span></h2>
-        <div class="skills-container">
-            <!-- Skills will be loaded dynamically -->
         </div>
     </section>
 
@@ -65,6 +60,14 @@
         <h2 class="heading">My <span class="neon-glow">Education</span></h2>
         <div class="education-container">
             <!-- Education will be loaded dynamically -->
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section class="skills" id="skills">
+        <h2 class="heading">My <span class="neon-glow">Skills</span></h2>
+        <div class="skills-container">
+            <!-- Skills will be loaded dynamically -->
         </div>
     </section>
 
@@ -95,7 +98,7 @@
                 <div class="social-icons contact-social">
                     <a href="https://www.linkedin.com/in/abdullah-al-mamun-cse/" title="LinkedIn" target="_blank"><i class="fa-brands fa-linkedin"></i></a>
                     <a href="https://github.com/almamun-cse" title="GitHub" target="_blank"><i class="fa-brands fa-github"></i></a>
-                    <a href="#" title="Twitter" target="_blank"><i class="fa-brands fa-twitter"></i></a>
+                    <a href="#" title="Facebook" target="_blank"><i class="fa-brands fa-facebook"></i></a>
                     <a href="#" title="Instagram" target="_blank"><i class="fa-brands fa-instagram"></i></a>
                 </div>
             </div>

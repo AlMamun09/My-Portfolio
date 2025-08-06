@@ -1,7 +1,8 @@
 // Firebase Configuration
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, limit, enableIndexedDbPersistence, enableMultiTabIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
 
 // Add retry logic for Firebase connection
 const MAX_RETRIES = 3;
@@ -18,13 +19,64 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase with retry logic
-let app, auth, db;
+let app, auth, db, storage;
+
+// Configure CORS for Firebase Storage
+async function configureCORS() {
+  try {
+    // Set CORS configuration for Firebase Storage
+    // This is typically done on the server side or through Firebase Console
+    // Here we're logging instructions for the developer
+    console.log('CORS Configuration Note: To properly configure CORS for Firebase Storage:');
+    console.log('1. Go to Google Cloud Console: https://console.cloud.google.com/');
+    console.log('2. Select your Firebase project');
+    console.log('3. Navigate to Storage > Settings > CORS configuration');
+    console.log('4. Add the following CORS configuration:');
+    console.log(`[
+  {
+    "origin": ["*"],
+    "method": ["GET", "POST", "PUT", "DELETE"],
+    "maxAgeSeconds": 3600
+  }
+]`);
+    console.log('For production, replace "*" with your specific domain(s)');
+    
+    return true;
+  } catch (error) {
+    console.error('Error logging CORS configuration instructions:', error);
+    return false;
+  }
+}
 
 function initializeFirebase() {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
+    
+    // Log CORS configuration instructions
+    configureCORS();
+    
+    // Enable offline persistence with unlimited cache size
+    enableIndexedDbPersistence(db, { cacheSizeBytes: CACHE_SIZE_UNLIMITED })
+      .then(() => {
+        console.log('Offline persistence enabled successfully');
+      })
+      .catch((err) => {
+        if (err.code === 'failed-precondition') {
+          // Multiple tabs open, persistence can only be enabled in one tab at a time
+          console.warn('Offline persistence failed: Multiple tabs open');
+          // Try multi-tab persistence instead
+          return enableMultiTabIndexedDbPersistence(db);
+        } else if (err.code === 'unimplemented') {
+          // The current browser does not support all of the features required for persistence
+          console.warn('Offline persistence is not supported by this browser');
+        } else {
+          console.error('Error enabling offline persistence:', err);
+        }
+      });
+    
     console.log('Firebase initialized successfully');
     retryCount = 0; // Reset retry count on success
     return true;
@@ -67,5 +119,66 @@ async function testDatabaseConnection() {
   }
 }
 
+// Firebase Storage Security Rules Information
+function logStorageSecurityRulesInfo() {
+  console.log('Firebase Storage Security Rules Information:');
+  console.log('To configure proper security rules for project image uploads:');
+  console.log('1. Go to Firebase Console: https://console.firebase.google.com/');
+  console.log('2. Select your project');
+  console.log('3. Navigate to Storage > Rules');
+  console.log('4. Update the rules to allow authenticated users to upload to project-images/:');
+  console.log(`
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow public read access to all files
+    match /{allPaths=**} {
+      allow read;
+    }
+    
+    // Allow authenticated users to upload to project-images/
+    match /project-images/{imageId} {
+      allow write: if request.auth != null 
+                    && request.resource.size < 2 * 1024 * 1024 
+                    && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
+`);
+  console.log('These rules allow:');
+  console.log('- Public read access to all files');
+  console.log('- Only authenticated users can upload to project-images/');
+  console.log('- Uploads are limited to 2MB');
+  console.log('- Only image files are allowed');
+}
+
+// Call the function to log security rules info
+logStorageSecurityRulesInfo();
+
 // Export the initialized services
-export { app, auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, limit };
+export { 
+  app, 
+  auth, 
+  db, 
+  storage,
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  getDoc, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  limit,
+  enableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED,
+  ref,
+  uploadBytes,
+  getDownloadURL
+};

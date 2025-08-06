@@ -1,5 +1,5 @@
 // Import Firebase modules
-import { auth, db, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot } from '../js/firebase-config.js';
+import { auth, db, signOut, onAuthStateChanged, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, limit } from './firebase-config.js';
 
 // Confirmation Dialog Utility
 const confirmDialog = {
@@ -83,6 +83,43 @@ document.addEventListener('DOMContentLoaded', () => {
             navbar.classList.remove('active');
         });
     });
+    
+    // Image source toggle functionality
+    const imageSourceToggle = document.getElementById('image-source-toggle');
+    const imageUploadContainer = document.getElementById('image-upload-container');
+    const imageUrlContainer = document.getElementById('image-url-container');
+    
+    if (imageSourceToggle) {
+        imageSourceToggle.addEventListener('change', function() {
+            if (this.checked) {
+                // Show URL input, hide file upload
+                imageUploadContainer.classList.add('hidden');
+                imageUrlContainer.classList.remove('hidden');
+            } else {
+                // Show file upload, hide URL input
+                imageUploadContainer.classList.remove('hidden');
+                imageUrlContainer.classList.add('hidden');
+            }
+        });
+    }
+    
+    // File input display functionality
+    const fileInput = document.getElementById('project-image-file');
+    const fileNameDisplay = document.getElementById('file-name-display');
+    
+    if (fileInput && fileNameDisplay) {
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                fileNameDisplay.textContent = file.name;
+                
+                // Validate file type and size
+                validateImageFile(file);
+            } else {
+                fileNameDisplay.textContent = 'No file selected';
+            }
+        });
+    }
     
     // Clean up listeners when page is unloaded
     window.addEventListener('beforeunload', cleanupFirestoreListeners);
@@ -326,15 +363,26 @@ async function populateProjectTable() {
     tableBody.innerHTML = '';
     
     try {
-        // Use the cached projectsData instead of making a new query
-        Object.entries(projectsData).forEach(([id, project]) => {
+        // Get projects sorted by order field
+        const projectEntries = Object.entries(projectsData);
+        
+        // Sort by order field if it exists, otherwise use index
+        projectEntries.sort((a, b) => {
+            const orderA = a[1].order !== undefined ? a[1].order : Number.MAX_SAFE_INTEGER;
+            const orderB = b[1].order !== undefined ? b[1].order : Number.MAX_SAFE_INTEGER;
+            return orderA - orderB;
+        });
+        
+        projectEntries.forEach(([id, project], index) => {
             const row = document.createElement('tr');
+            row.setAttribute('data-id', id);
             
             const techList = project.technologies.slice(0, 3).join(', ') + 
                 (project.technologies.length > 3 ? '...' : '');
             
+            // Add drag handle and use order number instead of index
             row.innerHTML = `
-                <td>${id}</td>
+                <td class="drag-handle"><i class="fas fa-grip-vertical"></i></td>
                 <td>${project.title}</td>
                 <td>${techList}</td>
                 <td>
@@ -387,15 +435,68 @@ async function populateSkillCategories() {
     categoriesList.innerHTML = '';
     
     try {
-        // Use the cached skillsData instead of making a new query
-        const categories = Object.keys(skillsData);
+        // Get all skill categories with their document IDs
+        const categoryDocs = [];
+        const q = query(skillsCollection);
+        const querySnapshot = await getDocs(q);
         
-        categories.forEach(category => {
+        querySnapshot.forEach(doc => {
+            categoryDocs.push({
+                id: doc.id,
+                categoryName: doc.data().categoryName,
+                order: doc.data().order
+            });
+        });
+        
+        // Sort by order field if it exists
+        categoryDocs.sort((a, b) => {
+            const orderA = a.order !== undefined ? a.order : Number.MAX_SAFE_INTEGER;
+            const orderB = b.order !== undefined ? b.order : Number.MAX_SAFE_INTEGER;
+            return orderA - orderB;
+        });
+        
+        categoryDocs.forEach(categoryDoc => {
             const li = document.createElement('li');
-            li.textContent = category;
-            li.addEventListener('click', () => selectSkillCategory(category));
+            li.setAttribute('data-id', categoryDoc.id);
+            li.innerHTML = `
+                <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
+                <span class="category-name">${categoryDoc.categoryName}</span>
+                <button class="delete-category-btn" data-category="${categoryDoc.categoryName}" data-id="${categoryDoc.id}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            // Add click event to the category name span
+            const categoryNameSpan = li.querySelector('.category-name');
+            categoryNameSpan.addEventListener('click', () => selectSkillCategory(categoryDoc.categoryName));
+            
             categoriesList.appendChild(li);
         });
+        
+        // Use event delegation for delete buttons
+        // Remove any existing event listener
+        if (categoriesList._hasCategoryListeners) {
+            categoriesList.removeEventListener('click', categoriesList._categoryClickHandler);
+        }
+        
+        // Define the click handler function
+        categoriesList._categoryClickHandler = function(e) {
+            const target = e.target.closest('.delete-category-btn');
+            if (!target) return;
+            
+            const category = target.dataset.category;
+            
+            confirmDialog.show('Delete Category', `Are you sure you want to delete the category "${category}" and all its skills?`).then(confirmed => {
+                if (confirmed) {
+                    deleteSkillCategory(category);
+                }
+            });
+        };
+        
+        // Add the event listener to the categories list
+        categoriesList.addEventListener('click', categoriesList._categoryClickHandler);
+        categoriesList._hasCategoryListeners = true;
+        
         } catch (error) {
             console.error('Error getting skill categories:', error);
         }
@@ -413,32 +514,52 @@ async function populateSkills(category) {
     skillsList.innerHTML = '';
     
     try {
-        // Use the cached skillsData instead of making a new query
-        if (!skillsData[category]) {
+        // Find the document for this category
+        let docId = '';
+        let skillsWithOrder = [];
+        
+        const q = query(skillsCollection, where("categoryName", "==", category));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
             console.log(`No skills found for category: ${category}`);
             return;
         }
         
-        const skills = skillsData[category] || [];
-        
-        // Find the document ID for this category (needed for delete operations)
-        let docId = '';
-        const q = query(skillsCollection, where("categoryName", "==", category));
-        const querySnapshot = await getDocs(q);
         querySnapshot.forEach(doc => {
             docId = doc.id;
-        });
+            const data = doc.data();
             
-            skills.forEach(skill => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span>${skill}</span>
-                    <button class="delete-skill-btn" data-category="${category}" data-skill="${skill}" data-docid="${docId}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                skillsList.appendChild(li);
-            });
+            // Get skills with their order information if available
+            if (data.skillsOrder && Array.isArray(data.skillsOrder)) {
+                // If we have order information, use it
+                skillsWithOrder = data.skillsOrder;
+            } else {
+                // Otherwise create order information from the skills list
+                skillsWithOrder = (data.skillsList || []).map((skill, index) => ({
+                    name: skill,
+                    order: index
+                }));
+            }
+        });
+        
+        // Sort skills by order
+        skillsWithOrder.sort((a, b) => a.order - b.order);
+        
+        skillsWithOrder.forEach((skillObj, index) => {
+            const skill = typeof skillObj === 'string' ? skillObj : skillObj.name;
+            const li = document.createElement('li');
+            li.setAttribute('data-skill', skill);
+            li.setAttribute('data-index', index);
+            li.innerHTML = `
+                <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
+                <span class="skill-name">${skill}</span>
+                <button class="delete-skill-btn" data-category="${category}" data-skill="${skill}" data-docid="${docId}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            skillsList.appendChild(li);
+        });
             
             // Use event delegation for delete buttons
             // Remove any existing event listener
@@ -482,6 +603,51 @@ async function populateSkills(category) {
         populateSkills(category);
     }
 
+    // Function to delete a skill category and all its skills
+    async function deleteSkillCategory(category) {
+        try {
+            // Find the document for this category
+            const q = query(skillsCollection, where("categoryName", "==", category));
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+                console.error('Category not found');
+                confirmDialog.show('Error', 'Skill category not found. It may have been deleted already.');
+                return;
+            }
+            
+            // Delete the category document
+            let docId;
+            querySnapshot.forEach(doc => {
+                docId = doc.id;
+            });
+            
+            if (docId) {
+                await deleteDoc(doc(db, 'skills', docId));
+                
+                // Update the cached skillsData
+                delete skillsData[category];
+                
+                // Refresh the categories list
+                await populateSkillCategories();
+                
+                // Clear the skills list if the current category was deleted
+                const currentCategory = document.getElementById('current-category');
+                if (currentCategory && currentCategory.textContent === category) {
+                    const skillsList = document.getElementById('skills-list');
+                    if (skillsList) skillsList.innerHTML = '';
+                    currentCategory.textContent = 'Select a category';
+                }
+                
+                // Show success message
+                confirmDialog.show('Success', `Category "${category}" has been successfully deleted.`);
+            }
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            confirmDialog.show('Error', `Failed to delete category: ${error.message}. Please try again.`);
+        }
+    }
+    
     // Function to add a new skill category
     async function addSkillCategory() {
         const newCategoryInput = document.getElementById('new-category-name');
@@ -500,11 +666,16 @@ async function populateSkills(category) {
                 return;
             }
             
-            // Add new category to Firestore
+            // Get the current count of skill categories to set the order field
+            const skillCategoriesQuery = query(skillsCollection);
+            const skillCategoriesSnapshot = await getDocs(skillCategoriesQuery);
+            
+            // Add new category to Firestore with order field
             await addDoc(skillsCollection, {
                 categoryName,
                 skillsList: [],
-                createdAt: new Date()
+                createdAt: new Date(),
+                order: skillCategoriesSnapshot.size
             });
             
             await populateSkillCategories();
@@ -525,52 +696,91 @@ async function populateSkills(category) {
         const currentCategory = document.getElementById('current-category');
         if (!newSkillInput || !currentCategory) return;
         
-        const skillName = newSkillInput.value.trim();
+        const skillNamesInput = newSkillInput.value.trim();
         const category = currentCategory.textContent;
         
-        if (!skillName || !category) return;
+        if (!skillNamesInput || !category) return;
+        
+        // Store the active category to maintain state after update
+        const activeCategory = category;
+        
+        // Split input by commas and clean up each skill name
+        const skillNamesArray = skillNamesInput.split(',')
+            .map(name => name.trim())
+            .filter(name => name.length > 0);
+        
+        if (skillNamesArray.length === 0) return;
         
         try {
             // Get the document for this category
             const q = query(skillsCollection, where("categoryName", "==", category));
             const querySnapshot = await getDocs(q);
             
+            let docId;
+            let existingSkills = [];
+            let newSkills = [];
+            let duplicateSkills = [];
+            
             if (querySnapshot.empty) {
-                // Create new category with this skill
+                // Create new category with these skills
                 await addDoc(skillsCollection, {
                     categoryName: category,
-                    skillsList: [skillName],
+                    skillsList: skillNamesArray,
                     createdAt: new Date()
                 });
+                newSkills = skillNamesArray;
             } else {
                 // Update existing category
-                let docId;
-                let skills = [];
-                
                 querySnapshot.forEach(doc => {
                     docId = doc.id;
-                    skills = doc.data().skillsList || [];
+                    existingSkills = doc.data().skillsList || [];
                 });
                 
-                if (skills.includes(skillName)) {
-                    confirmDialog.show('Error', `Skill "${skillName}" already exists in the ${category} category!`);
+                // Check for duplicates and add only new skills
+                skillNamesArray.forEach(skillName => {
+                    if (existingSkills.includes(skillName)) {
+                        duplicateSkills.push(skillName);
+                    } else {
+                        newSkills.push(skillName);
+                        existingSkills.push(skillName);
+                    }
+                });
+                
+                if (newSkills.length === 0) {
+                    const duplicateMessage = duplicateSkills.length === 1 
+                        ? `Skill "${duplicateSkills[0]}" already exists` 
+                        : `All skills already exist`;
+                    confirmDialog.show('Error', `${duplicateMessage} in the ${category} category!`);
                     return;
                 }
                 
-                skills.push(skillName);
-                
                 const docRef = doc(db, 'skills', docId);
                 await updateDoc(docRef, {
-                    skillsList: skills,
+                    skillsList: existingSkills,
                     updatedAt: new Date()
                 });
             }
             
-            await populateSkills(category);
+            // Clear the input field
             newSkillInput.value = '';
             
+            // Re-select the active category to maintain state
+            await populateSkillCategories();
+            selectSkillCategory(activeCategory);
+            
             // Show success message
-            confirmDialog.show('Success', `Skill "${skillName}" has been successfully added to ${category}.`);
+            const successMessage = newSkills.length === 1 
+                ? `Skill "${newSkills[0]}" has been successfully added to ${category}.`
+                : `${newSkills.length} skills have been successfully added to ${category}.`;
+            
+            if (duplicateSkills.length > 0) {
+                const duplicateMessage = duplicateSkills.length === 1 
+                    ? `Note: "${duplicateSkills[0]}" was skipped as it already exists.`
+                    : `Note: ${duplicateSkills.length} skills were skipped as they already exist.`;
+                confirmDialog.show('Success', `${successMessage}\n${duplicateMessage}`);
+            } else {
+                confirmDialog.show('Success', successMessage);
+            }
         } catch (error) {
             console.error('Error adding skill:', error);
             confirmDialog.show('Error', `Failed to add skill: ${error.message}. Please try again.`);
@@ -665,6 +875,25 @@ async function populateSkills(category) {
         }
     }
 
+    // Function to validate image file type and size
+    function validateImageFile(file) {
+        // Check file type
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            confirmDialog.show('Upload Error', 'Invalid file type. Please select a JPG, PNG, or WebP image.');
+            return false;
+        }
+        
+        // Check file size (2MB = 2 * 1024 * 1024 bytes)
+        const maxSize = 2 * 1024 * 1024;
+        if (file.size > maxSize) {
+            confirmDialog.show('Upload Error', 'File size exceeds 2MB limit. Please select a smaller image.');
+            return false;
+        }
+        
+        return true;
+    }
+    
     // Function to save a project (add or update)
     async function saveProject(e) {
         e.preventDefault();
@@ -677,8 +906,102 @@ async function populateSkills(category) {
             const technologies = document.getElementById('project-technologies').value.split(',').map(tech => tech.trim());
             const features = document.getElementById('project-features').value.split('\n').filter(feature => feature.trim());
             const challenges = document.getElementById('project-challenges').value.split('\n').filter(challenge => challenge.trim());
-            const github = document.getElementById('project-github').value;
-            const demo = document.getElementById('project-demo').value;
+            // Get GitHub and Demo URLs
+            let github = document.getElementById('project-github').value.trim();
+            let demo = document.getElementById('project-demo').value.trim();
+            
+            // Validate URLs if provided
+            const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+            
+            // If GitHub URL is provided but invalid, show error
+            if (github && !urlPattern.test(github)) {
+                confirmDialog.show('Validation Error', 'Please enter a valid GitHub URL or leave it empty');
+                return;
+            }
+            
+            // If Demo URL is provided but invalid, show error
+            if (demo && !urlPattern.test(demo)) {
+                confirmDialog.show('Validation Error', 'Please enter a valid Demo URL or leave it empty');
+                return;
+            }
+            
+            // Set default value if empty
+            github = github || '#';
+            demo = demo || '#';
+            
+            // Handle image upload or URL
+            let imageUrl = '';
+            const isImageUrlMode = document.getElementById('image-source-toggle').checked;
+            
+            if (!isImageUrlMode) {
+                // Upload Image mode
+                const fileInput = document.getElementById('project-image-file');
+                const file = fileInput.files[0];
+                
+                if (file) {
+                    // Validate file before uploading
+                    if (!validateImageFile(file)) {
+                        return; // Stop if validation fails
+                    }
+                    
+                    try {
+                        // Upload to Cloudinary instead of Firebase Storage
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('upload_preset', 'my-portfolio-uploads');
+                        formData.append('cloud_name', 'dyiw0azly');
+                        
+                        // Show loading indicator
+                        const saveButton = document.querySelector('#project-form button[type="submit"]');
+                        const originalText = saveButton.textContent;
+                        saveButton.textContent = 'Uploading image...';
+                        saveButton.disabled = true;
+                        
+                        // Make the API call to Cloudinary
+                        const response = await fetch('https://api.cloudinary.com/v1_1/dyiw0azly/image/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`Cloudinary upload failed with status: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        imageUrl = data.secure_url;
+                        console.log('File uploaded successfully to Cloudinary. URL:', imageUrl);
+                        
+                        // Reset button
+                        saveButton.textContent = originalText;
+                        saveButton.disabled = false;
+                    } catch (uploadError) {
+                        console.error('Error uploading file to Cloudinary:', uploadError);
+                        confirmDialog.show('Upload Error', 'Failed to upload image to Cloudinary. Please try again or use an image URL instead.');
+                        
+                        // Reset button if there was an error
+                        const saveButton = document.querySelector('#project-form button[type="submit"]');
+                        if (saveButton.textContent.includes('Uploading')) {
+                            saveButton.textContent = 'Save Project';
+                            saveButton.disabled = false;
+                        }
+                        return;
+                    }
+                }
+            } else {
+                // Image URL mode
+                const urlInput = document.getElementById('project-image-url');
+                const url = urlInput.value.trim();
+                
+                // Validate the image URL
+                if (url && !urlPattern.test(url)) {
+                    confirmDialog.show('Validation Error', 'Please enter a valid image URL or leave it empty');
+                    return;
+                }
+                
+                if (url) {
+                    imageUrl = url;
+                }
+            }
             
             const projectData = {
                 title,
@@ -692,21 +1015,40 @@ async function populateSkills(category) {
                 updatedAt: new Date()
             };
             
+            // Add imageUrl to projectData if it exists
+            if (imageUrl) {
+                projectData.imageUrl = imageUrl;
+            }
+            
             if (projectId) {
                 // Update existing project
                 const projectDoc = doc(db, 'projects', projectId);
-                // Preserve the images array if it exists
+                // Get existing project data
                 const snapshot = await getDoc(projectDoc);
+                
+                // If no new image was provided, keep the existing imageUrl
+                if (!imageUrl && snapshot.exists() && snapshot.data().imageUrl) {
+                    projectData.imageUrl = snapshot.data().imageUrl;
+                }
+                
+                // Preserve the images array if it exists (for backward compatibility)
                 if (snapshot.exists()) {
                     projectData.images = snapshot.data().images || [`project-${projectId}.jpg`];
                 } else {
                     projectData.images = [`project-${projectId}.jpg`];
                 }
+                
                 await updateDoc(projectDoc, projectData);
             } else {
                 // Add new project
                 projectData.createdAt = new Date();
-                projectData.images = ['project-default.jpg'];
+                projectData.images = ['project-default.jpg']; // For backward compatibility
+                
+                // Get the current count of projects to set the order field
+                const projectsQuery = query(projectsCollection);
+                const projectsSnapshot = await getDocs(projectsQuery);
+                projectData.order = projectsSnapshot.size;
+                
                 await addDoc(projectsCollection, projectData);
             }
             
@@ -776,12 +1118,23 @@ async function populateEducationTable() {
     tableBody.innerHTML = '';
     
     try {
-        // Use the cached educationData instead of making a new query
-        Object.entries(educationData).forEach(([id, education]) => {
+        // Get education entries sorted by order field
+        const educationEntries = Object.entries(educationData);
+        
+        // Sort by order field if it exists, otherwise use index
+        educationEntries.sort((a, b) => {
+            const orderA = a[1].order !== undefined ? a[1].order : Number.MAX_SAFE_INTEGER;
+            const orderB = b[1].order !== undefined ? b[1].order : Number.MAX_SAFE_INTEGER;
+            return orderA - orderB;
+        });
+        
+        educationEntries.forEach(([id, education], index) => {
             const row = document.createElement('tr');
+            row.setAttribute('data-id', id);
             
+            // Add drag handle and use order number instead of index
             row.innerHTML = `
-                <td>${id}</td>
+                <td class="drag-handle"><i class="fas fa-grip-vertical"></i></td>
                 <td>${education.degree}</td>
                 <td>${education.institution}</td>
                 <td>
@@ -943,6 +1296,12 @@ async function populateEducationTable() {
             } else {
                 // Add new education
                 educationData.createdAt = new Date();
+                
+                // Get the current count of education entries to set the order field
+                const educationQuery = query(educationCollection);
+                const educationSnapshot = await getDocs(educationQuery);
+                educationData.order = educationSnapshot.size;
+                
                 await addDoc(educationCollection, educationData);
             }
             
@@ -958,9 +1317,9 @@ async function populateEducationTable() {
     }
     
     // Variables to store unsubscribe functions for onSnapshot listeners
-let unsubscribeProjects = null;
-let unsubscribeSkills = null;
-let unsubscribeEducation = null;
+var unsubscribeProjects = null;
+var unsubscribeSkills = null;
+var unsubscribeEducation = null;
 
 // Initialize the admin dashboard
 async function initAdminDashboard() {
@@ -974,24 +1333,186 @@ async function initAdminDashboard() {
         // Note: We don't need to call populate functions here
         // as they are now called by the onSnapshot listeners
             
-            // Add event listeners
-            document.getElementById('add-project-btn')?.addEventListener('click', showAddProjectForm);
-            document.getElementById('cancel-project-btn')?.addEventListener('click', () => {
-                document.getElementById('project-form-container').classList.add('hidden');
+        // Add event listeners
+        document.getElementById('add-project-btn')?.addEventListener('click', showAddProjectForm);
+        document.getElementById('cancel-project-btn')?.addEventListener('click', () => {
+            document.getElementById('project-form-container').classList.add('hidden');
+        });
+        document.getElementById('project-form')?.addEventListener('submit', saveProject);
+        document.getElementById('add-category-btn')?.addEventListener('click', addSkillCategory);
+        document.getElementById('add-skill-btn')?.addEventListener('click', addSkill);
+        document.getElementById('add-education-btn')?.addEventListener('click', showAddEducationForm);
+        document.getElementById('cancel-education-btn')?.addEventListener('click', () => {
+            document.getElementById('education-form-container').classList.add('hidden');
+        });
+        document.getElementById('education-form')?.addEventListener('submit', saveEducation);
+        document.getElementById('save-settings-btn')?.addEventListener('click', saveSettings);
+        document.getElementById('logout-btn')?.addEventListener('click', logout);
+        
+        // Initialize SortableJS for all sortable lists
+        initSortableLists();
+    } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        alert('Error loading data. Please try again later.');
+    }
+}
+    
+    // Function to initialize SortableJS for all sortable lists
+    function initSortableLists() {
+        // Initialize SortableJS for projects table
+        const projectsTableBody = document.getElementById('project-table-body');
+        if (projectsTableBody) {
+            new Sortable(projectsTableBody, {
+                animation: 150,
+                handle: '.drag-handle',
+                onEnd: async (evt) => {
+                    // Get all the table rows in their new order
+                    const rows = projectsTableBody.querySelectorAll('tr');
+                    
+                    // Create an array to hold all the update promises
+                    const updatePromises = [];
+                    
+                    rows.forEach((row, index) => {
+                        const docId = row.dataset.id;
+                        
+                        if (docId) {
+                            const docRef = doc(db, 'projects', docId);
+                            // Update the 'order' field of the document with its new index
+                            updatePromises.push(updateDoc(docRef, { order: index }));
+                        }
+                    });
+                    
+                    // Execute all updates concurrently
+                    try {
+                        await Promise.all(updatePromises);
+                        console.log('Projects order updated successfully!');
+                    } catch (error) {
+                        console.error('Error updating projects order:', error);
+                    }
+                }
             });
-            document.getElementById('project-form')?.addEventListener('submit', saveProject);
-            document.getElementById('add-category-btn')?.addEventListener('click', addSkillCategory);
-            document.getElementById('add-skill-btn')?.addEventListener('click', addSkill);
-            document.getElementById('add-education-btn')?.addEventListener('click', showAddEducationForm);
-            document.getElementById('cancel-education-btn')?.addEventListener('click', () => {
-                document.getElementById('education-form-container').classList.add('hidden');
+        }
+        
+        // Initialize SortableJS for skill categories list
+        const skillCategoriesList = document.getElementById('skill-categories-list');
+        if (skillCategoriesList) {
+            new Sortable(skillCategoriesList, {
+                animation: 150,
+                handle: '.drag-handle',
+                onEnd: async (evt) => {
+                    // Get all the list items in their new order
+                    const items = skillCategoriesList.querySelectorAll('li');
+                    
+                    // Create an array to hold all the update promises
+                    const updatePromises = [];
+                    
+                    items.forEach((item, index) => {
+                        const docId = item.dataset.id;
+                        
+                        if (docId) {
+                            const docRef = doc(db, 'skills', docId);
+                            // Update the 'order' field of the document with its new index
+                            updatePromises.push(updateDoc(docRef, { order: index }));
+                        }
+                    });
+                    
+                    // Execute all updates concurrently
+                    try {
+                        await Promise.all(updatePromises);
+                        console.log('Skill categories order updated successfully!');
+                    } catch (error) {
+                        console.error('Error updating skill categories order:', error);
+                    }
+                }
             });
-            document.getElementById('education-form')?.addEventListener('submit', saveEducation);
-            document.getElementById('save-settings-btn')?.addEventListener('click', saveSettings);
-            document.getElementById('logout-btn')?.addEventListener('click', logout);
-        } catch (error) {
-            console.error('Error initializing dashboard:', error);
-            alert('Error loading data. Please try again later.');
+        }
+        
+        // Initialize SortableJS for skills list
+        const skillsList = document.getElementById('skills-list');
+        if (skillsList) {
+            new Sortable(skillsList, {
+                animation: 150,
+                handle: '.drag-handle',
+                onEnd: async (evt) => {
+                    // Get all the list items in their new order
+                    const items = skillsList.querySelectorAll('li');
+                    const currentCategory = document.getElementById('current-category')?.textContent;
+                    
+                    if (!currentCategory) return;
+                    
+                    // Find the document for this category
+                    const q = query(skillsCollection, where("categoryName", "==", currentCategory));
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (querySnapshot.empty) return;
+                    
+                    let docId;
+                    let skillsListData = [];
+                    
+                    querySnapshot.forEach(doc => {
+                        docId = doc.id;
+                        skillsListData = doc.data().skillsList || [];
+                    });
+                    
+                    if (!docId) return;
+                    
+                    // Create a new skillsOrder array with updated order
+                    const skillsOrder = [];
+                    
+                    items.forEach((item, index) => {
+                        const skill = item.dataset.skill;
+                        if (skill) {
+                            skillsOrder.push({
+                                name: skill,
+                                order: index
+                            });
+                        }
+                    });
+                    
+                    // Update the document with the new skillsOrder
+                    try {
+                        const docRef = doc(db, 'skills', docId);
+                        await updateDoc(docRef, { skillsOrder: skillsOrder });
+                        console.log('Skills order updated successfully!');
+                    } catch (error) {
+                        console.error('Error updating skills order:', error);
+                    }
+                }
+            });
+        }
+        
+        // Initialize SortableJS for education table
+        const educationTableBody = document.getElementById('education-table-body');
+        if (educationTableBody) {
+            new Sortable(educationTableBody, {
+                animation: 150,
+                handle: '.drag-handle',
+                onEnd: async (evt) => {
+                    // Get all the table rows in their new order
+                    const rows = educationTableBody.querySelectorAll('tr');
+                    
+                    // Create an array to hold all the update promises
+                    const updatePromises = [];
+                    
+                    rows.forEach((row, index) => {
+                        const docId = row.dataset.id;
+                        
+                        if (docId) {
+                            const docRef = doc(db, 'education', docId);
+                            // Update the 'order' field of the document with its new index
+                            updatePromises.push(updateDoc(docRef, { order: index }));
+                        }
+                    });
+                    
+                    // Execute all updates concurrently
+                    try {
+                        await Promise.all(updatePromises);
+                        console.log('Education order updated successfully!');
+                    } catch (error) {
+                        console.error('Error updating education order:', error);
+                    }
+                }
+            });
         }
     }
     

@@ -1,9 +1,6 @@
-const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-
-const port = 3000;
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -23,7 +20,8 @@ const mimeTypes = {
   '.wasm': 'application/wasm'
 };
 
-const server = http.createServer((req, res) => {
+// Handler function for Vercel serverless deployment
+module.exports = (req, res) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   
   // Parse URL
@@ -38,7 +36,11 @@ const server = http.createServer((req, res) => {
     pathname = '/index.html';
   }
   
-  const filePath = path.join(__dirname, pathname);
+  // For Vercel deployment, we need to adjust the path resolution
+  // In development, server.js is in the server directory
+  // In production on Vercel, it's at the root of the serverless function
+  const rootDir = process.env.VERCEL ? path.join(__dirname) : path.join(__dirname, '..');
+  const filePath = path.join(rootDir, pathname);
   const ext = path.parse(filePath).ext;
   
   // Set CORS headers
@@ -72,8 +74,15 @@ const server = http.createServer((req, res) => {
       res.end(data);
     });
   });
-});
+};
 
-server.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}/`);
-});
+// For local development, create a server if not running on Vercel
+if (!process.env.VERCEL) {
+  const http = require('http');
+  const port = process.env.PORT || 5000;
+  
+  const server = http.createServer(module.exports);
+  server.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}/`);
+  });
+}

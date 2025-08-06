@@ -1,0 +1,4 @@
+# Redirects for Netlify
+/pages/login.html /pages/login.html 200
+/pages/admin.html /pages/admin.html 200
+/* /index.html 200
