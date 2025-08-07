@@ -624,6 +624,8 @@ function createProjectCard(project, id, index = 0) {
             title: validatedProject.title,
             techCount: validatedProject.technologies.length
         });
+        
+        // No image display on project cards as per requirements
 
         card.innerHTML = `
             <div class="project-header">

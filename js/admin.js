@@ -109,16 +109,74 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (fileInput && fileNameDisplay) {
         fileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                const file = this.files[0];
-                fileNameDisplay.textContent = file.name;
-                
-                // Validate file type and size
-                validateImageFile(file);
+            if (this.files && this.files.length > 0) {
+                if (this.files.length === 1) {
+                    const file = this.files[0];
+                    fileNameDisplay.textContent = file.name;
+                    
+                    // Validate file type and size
+                    validateImageFile(file);
+                } else {
+                    fileNameDisplay.textContent = `${this.files.length} files selected`;
+                    
+                    // Validate each file
+                    let allValid = true;
+                    for (let i = 0; i < this.files.length; i++) {
+                        if (!validateImageFile(this.files[i], false)) {
+                            allValid = false;
+                        }
+                    }
+                    
+                    if (!allValid) {
+                        confirmDialog.show('Validation Error', 'One or more files do not meet the requirements. Please check the file types and sizes.');
+                    }
+                }
             } else {
-                fileNameDisplay.textContent = 'No file selected';
+                fileNameDisplay.textContent = 'No files selected';
             }
         });
+    }
+    
+    // Function to add an image URL input with optional initial value
+    function addImageUrlInput(initialValue = '') {
+        const imageUrlsContainer = document.getElementById('image-urls-container');
+        if (!imageUrlsContainer) return;
+        
+        const newUrlGroup = document.createElement('div');
+        newUrlGroup.className = 'image-url-input-group';
+        newUrlGroup.innerHTML = `
+            <input type="text" class="project-image-url neon-input" placeholder="https://example.com/image.jpg" value="${initialValue}">
+            <button type="button" class="remove-url-btn btn"><i class="fas fa-times"></i></button>
+        `;
+        imageUrlsContainer.appendChild(newUrlGroup);
+        
+        // Add event listener to the remove button
+        const removeBtn = newUrlGroup.querySelector('.remove-url-btn');
+        removeBtn.addEventListener('click', function() {
+            imageUrlsContainer.removeChild(newUrlGroup);
+        });
+        
+        return newUrlGroup;
+    }
+    
+    // Add image URL button functionality
+    const addImageUrlBtn = document.getElementById('add-image-url-btn');
+    const imageUrlsContainer = document.getElementById('image-urls-container');
+    
+    if (addImageUrlBtn && imageUrlsContainer) {
+        addImageUrlBtn.addEventListener('click', function() {
+            addImageUrlInput();
+        });
+        
+        // Add event listener to the initial remove button
+        const initialRemoveBtn = imageUrlsContainer.querySelector('.remove-url-btn');
+        if (initialRemoveBtn) {
+            initialRemoveBtn.addEventListener('click', function() {
+                const inputGroup = this.closest('.image-url-input-group');
+                const input = inputGroup.querySelector('.project-image-url');
+                input.value = ''; // Just clear the input instead of removing the first group
+            });
+        }
     }
     
     // Clean up listeners when page is unloaded
@@ -639,8 +697,7 @@ async function populateSkills(category) {
                     currentCategory.textContent = 'Select a category';
                 }
                 
-                // Show success message
-                confirmDialog.show('Success', `Category "${category}" has been successfully deleted.`);
+                // Success message removed
             }
         } catch (error) {
             console.error('Error deleting category:', error);
@@ -662,7 +719,7 @@ async function populateSkills(category) {
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
-                alert('Category already exists!');
+                confirmDialog.show('Error', 'Category already exists!');
                 return;
             }
             
@@ -682,8 +739,7 @@ async function populateSkills(category) {
             selectSkillCategory(categoryName);
             newCategoryInput.value = '';
             
-            // Show success message
-            confirmDialog.show('Success', `Category "${categoryName}" has been successfully added.`);
+            // No success message, just update the UI
         } catch (error) {
             console.error('Error adding category:', error);
             confirmDialog.show('Error', `Failed to add category: ${error.message}. Please try again.`);
@@ -755,10 +811,29 @@ async function populateSkills(category) {
                 }
                 
                 const docRef = doc(db, 'skills', docId);
-                await updateDoc(docRef, {
+                
+                // Get existing skillsOrder if it exists
+                const docSnap = await getDoc(docRef);
+                const data = docSnap.data();
+                let updateData = {
                     skillsList: existingSkills,
                     updatedAt: new Date()
-                });
+                };
+                
+                // Update skillsOrder if it exists
+                if (data.skillsOrder && Array.isArray(data.skillsOrder)) {
+                    const skillsOrder = [...data.skillsOrder];
+                    // Add new skills to skillsOrder
+                    newSkills.forEach(skillName => {
+                        skillsOrder.push({
+                            name: skillName,
+                            order: skillsOrder.length
+                        });
+                    });
+                    updateData.skillsOrder = skillsOrder;
+                }
+                
+                await updateDoc(docRef, updateData);
             }
             
             // Clear the input field
@@ -768,18 +843,12 @@ async function populateSkills(category) {
             await populateSkillCategories();
             selectSkillCategory(activeCategory);
             
-            // Show success message
-            const successMessage = newSkills.length === 1 
-                ? `Skill "${newSkills[0]}" has been successfully added to ${category}.`
-                : `${newSkills.length} skills have been successfully added to ${category}.`;
-            
-            if (duplicateSkills.length > 0) {
+            // Only show error messages for duplicates if that's all we have
+            if (duplicateSkills.length > 0 && newSkills.length === 0) {
                 const duplicateMessage = duplicateSkills.length === 1 
                     ? `Note: "${duplicateSkills[0]}" was skipped as it already exists.`
                     : `Note: ${duplicateSkills.length} skills were skipped as they already exist.`;
-                confirmDialog.show('Success', `${successMessage}\n${duplicateMessage}`);
-            } else {
-                confirmDialog.show('Success', successMessage);
+                confirmDialog.show('Error', duplicateMessage);
             }
         } catch (error) {
             console.error('Error adding skill:', error);
@@ -799,18 +868,28 @@ async function populateSkills(category) {
                 return;
             }
             
-            const skills = docSnap.data().skillsList || [];
+            const data = docSnap.data();
+            const skills = data.skillsList || [];
             const updatedSkills = skills.filter(s => s !== skill);
             
-            await updateDoc(docRef, {
+            // Also update the skillsOrder array if it exists
+            let updateData = {
                 skillsList: updatedSkills,
                 updatedAt: new Date()
-            });
+            };
+            
+            if (data.skillsOrder && Array.isArray(data.skillsOrder)) {
+                const updatedSkillsOrder = data.skillsOrder.filter(s => s.name !== skill);
+                // Reindex the order values
+                updatedSkillsOrder.forEach((s, index) => {
+                    s.order = index;
+                });
+                updateData.skillsOrder = updatedSkillsOrder;
+            }
+            
+            await updateDoc(docRef, updateData);
             
             await populateSkills(category);
-            
-            // Show success message
-            confirmDialog.show('Success', `Skill "${skill}" has been successfully deleted from ${category}.`);
         } catch (error) {
             console.error('Error deleting skill:', error);
             confirmDialog.show('Error', `Failed to delete skill: ${error.message}. Please try again.`);
@@ -844,6 +923,7 @@ async function populateSkills(category) {
             
             if (!projectSnapshot.exists()) {
                 console.error('Project not found');
+                confirmDialog.show('Error', 'Project not found');
                 return;
             }
             
@@ -868,10 +948,64 @@ async function populateSkills(category) {
             document.getElementById('project-github').value = project.github;
             document.getElementById('project-demo').value = project.demo;
             
+            // Clear any existing URL inputs except the first one
+            const imageUrlsContainer = document.getElementById('image-urls-container');
+            if (imageUrlsContainer) {
+                while (imageUrlsContainer.children.length > 1) {
+                    imageUrlsContainer.removeChild(imageUrlsContainer.lastChild);
+                }
+                
+                // Clear the first URL input
+                const firstUrlInput = imageUrlsContainer.querySelector('.project-image-url');
+                if (firstUrlInput) {
+                    firstUrlInput.value = '';
+                }
+            }
+            
+            // Handle image URLs
+            let imageUrls = [];
+            if (project.imageUrls && project.imageUrls.length > 0) {
+                imageUrls = project.imageUrls;
+            } else if (project.imageUrl) {
+                // For backward compatibility
+                imageUrls = [project.imageUrl];
+            }
+            
+            if (imageUrls.length > 0) {
+                // Set the toggle to URL mode
+                const imageSourceToggle = document.getElementById('image-source-toggle');
+                if (imageSourceToggle) {
+                    imageSourceToggle.checked = true;
+                    // Trigger the change event to update UI
+                    const event = new Event('change');
+                    imageSourceToggle.dispatchEvent(event);
+                }
+                
+                // Set the first image URL in the existing input
+                const firstUrlInput = document.querySelector('.project-image-url');
+                if (firstUrlInput) {
+                    firstUrlInput.value = imageUrls[0];
+                }
+                
+                // Add additional URL inputs for the rest of the URLs
+                for (let i = 1; i < imageUrls.length; i++) {
+                    addImageUrlInput(imageUrls[i]);
+                }
+            } else {
+                // Set the toggle to Upload mode
+                const imageSourceToggle = document.getElementById('image-source-toggle');
+                if (imageSourceToggle) {
+                    imageSourceToggle.checked = false;
+                    // Trigger the change event to update UI
+                    const event = new Event('change');
+                    imageSourceToggle.dispatchEvent(event);
+                }
+            }
+            
             formContainer.classList.remove('hidden');
         } catch (error) {
             console.error('Error editing project:', error);
-            alert('Error loading project data. Please try again.');
+            confirmDialog.show('Error', 'Error loading project data. Please try again.');
         }
     }
 
@@ -930,53 +1064,68 @@ async function populateSkills(category) {
             demo = demo || '#';
             
             // Handle image upload or URL
-            let imageUrl = '';
+            let imageUrls = [];
             const isImageUrlMode = document.getElementById('image-source-toggle').checked;
             
             if (!isImageUrlMode) {
-                // Upload Image mode
+                // Upload Images mode
                 const fileInput = document.getElementById('project-image-file');
-                const file = fileInput.files[0];
+                const files = fileInput.files;
                 
-                if (file) {
-                    // Validate file before uploading
-                    if (!validateImageFile(file)) {
-                        return; // Stop if validation fails
+                if (files && files.length > 0) {
+                    // Validate all files before uploading
+                    let allValid = true;
+                    for (let i = 0; i < files.length; i++) {
+                        if (!validateImageFile(files[i], false)) {
+                            allValid = false;
+                            break;
+                        }
+                    }
+                    
+                    if (!allValid) {
+                        confirmDialog.show('Validation Error', 'One or more files do not meet the requirements. Please check the file types and sizes.');
+                        return;
                     }
                     
                     try {
-                        // Upload to Cloudinary instead of Firebase Storage
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        formData.append('upload_preset', 'my-portfolio-uploads');
-                        formData.append('cloud_name', 'dyiw0azly');
-                        
                         // Show loading indicator
                         const saveButton = document.querySelector('#project-form button[type="submit"]');
                         const originalText = saveButton.textContent;
-                        saveButton.textContent = 'Uploading image...';
+                        saveButton.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`;
                         saveButton.disabled = true;
                         
-                        // Make the API call to Cloudinary
-                        const response = await fetch('https://api.cloudinary.com/v1_1/dyiw0azly/image/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
+                        // Upload all files to Cloudinary concurrently
+                        const uploadPromises = [];
                         
-                        if (!response.ok) {
-                            throw new Error(`Cloudinary upload failed with status: ${response.status}`);
+                        for (let i = 0; i < files.length; i++) {
+                            const formData = new FormData();
+                            formData.append('file', files[i]);
+                            formData.append('upload_preset', 'my-portfolio-uploads');
+                            formData.append('cloud_name', 'dyiw0azly');
+                            
+                            const uploadPromise = fetch('https://api.cloudinary.com/v1_1/dyiw0azly/image/upload', {
+                                method: 'POST',
+                                body: formData
+                            }).then(response => {
+                                if (!response.ok) {
+                                    throw new Error(`Cloudinary upload failed with status: ${response.status}`);
+                                }
+                                return response.json();
+                            }).then(data => data.secure_url);
+                            
+                            uploadPromises.push(uploadPromise);
                         }
                         
-                        const data = await response.json();
-                        imageUrl = data.secure_url;
-                        console.log('File uploaded successfully to Cloudinary. URL:', imageUrl);
+                        // Wait for all uploads to complete
+                        imageUrls = await Promise.all(uploadPromises);
+                        console.log('Files uploaded successfully to Cloudinary. URLs:', imageUrls);
                         
                         // Reset button
                         saveButton.textContent = originalText;
                         saveButton.disabled = false;
                     } catch (uploadError) {
-                        console.error('Error uploading file to Cloudinary:', uploadError);
-                        confirmDialog.show('Upload Error', 'Failed to upload image to Cloudinary. Please try again or use an image URL instead.');
+                        console.error('Error uploading files to Cloudinary:', uploadError);
+                        confirmDialog.show('Upload Error', 'Failed to upload images to Cloudinary. Please try again or use image URLs instead.');
                         
                         // Reset button if there was an error
                         const saveButton = document.querySelector('#project-form button[type="submit"]');
@@ -988,18 +1137,22 @@ async function populateSkills(category) {
                     }
                 }
             } else {
-                // Image URL mode
-                const urlInput = document.getElementById('project-image-url');
-                const url = urlInput.value.trim();
+                // Image URLs mode
+                const urlInputs = document.querySelectorAll('.project-image-url');
                 
-                // Validate the image URL
-                if (url && !urlPattern.test(url)) {
-                    confirmDialog.show('Validation Error', 'Please enter a valid image URL or leave it empty');
-                    return;
-                }
-                
-                if (url) {
-                    imageUrl = url;
+                for (let i = 0; i < urlInputs.length; i++) {
+                    const url = urlInputs[i].value.trim();
+                    
+                    // Skip empty URLs
+                    if (!url) continue;
+                    
+                    // Validate the image URL
+                    if (!urlPattern.test(url)) {
+                        confirmDialog.show('Validation Error', `Please enter a valid image URL or leave it empty (URL #${i+1})`);
+                        return;
+                    }
+                    
+                    imageUrls.push(url);
                 }
             }
             
@@ -1015,9 +1168,12 @@ async function populateSkills(category) {
                 updatedAt: new Date()
             };
             
-            // Add imageUrl to projectData if it exists
-            if (imageUrl) {
-                projectData.imageUrl = imageUrl;
+            // Add imageUrls to projectData if they exist
+            if (imageUrls.length > 0) {
+                projectData.imageUrls = imageUrls;
+                
+                // For backward compatibility, set the first image as imageUrl
+                projectData.imageUrl = imageUrls[0];
             }
             
             if (projectId) {
@@ -1026,9 +1182,15 @@ async function populateSkills(category) {
                 // Get existing project data
                 const snapshot = await getDoc(projectDoc);
                 
-                // If no new image was provided, keep the existing imageUrl
-                if (!imageUrl && snapshot.exists() && snapshot.data().imageUrl) {
-                    projectData.imageUrl = snapshot.data().imageUrl;
+                // If no new images were provided, keep the existing ones
+                if (imageUrls.length === 0 && snapshot.exists()) {
+                    if (snapshot.data().imageUrls) {
+                        projectData.imageUrls = snapshot.data().imageUrls;
+                    } else if (snapshot.data().imageUrl) {
+                        // Convert old single imageUrl to imageUrls array
+                        projectData.imageUrls = [snapshot.data().imageUrl];
+                        projectData.imageUrl = snapshot.data().imageUrl;
+                    }
                 }
                 
                 // Preserve the images array if it exists (for backward compatibility)
@@ -1043,6 +1205,11 @@ async function populateSkills(category) {
                 // Add new project
                 projectData.createdAt = new Date();
                 projectData.images = ['project-default.jpg']; // For backward compatibility
+                
+                // If no images were provided, set a default
+                if (imageUrls.length === 0) {
+                    projectData.imageUrls = [];
+                }
                 
                 // Get the current count of projects to set the order field
                 const projectsQuery = query(projectsCollection);
@@ -1059,7 +1226,7 @@ async function populateSkills(category) {
             document.getElementById('project-form-container').classList.add('hidden');
         } catch (error) {
             console.error('Error saving project:', error);
-            alert('Error saving project. Please try again.');
+            confirmDialog.show('Error', 'Error saving project. Please try again.');
         }
     }
 
@@ -1406,10 +1573,14 @@ async function initAdminDashboard() {
                     // Create an array to hold all the update promises
                     const updatePromises = [];
                     
+                    // Create a Set to track processed document IDs to prevent duplicates
+                    const processedDocIds = new Set();
+                    
                     items.forEach((item, index) => {
                         const docId = item.dataset.id;
                         
-                        if (docId) {
+                        if (docId && !processedDocIds.has(docId)) {
+                            processedDocIds.add(docId); // Mark this docId as processed
                             const docRef = doc(db, 'skills', docId);
                             // Update the 'order' field of the document with its new index
                             updatePromises.push(updateDoc(docRef, { order: index }));
@@ -1420,8 +1591,11 @@ async function initAdminDashboard() {
                     try {
                         await Promise.all(updatePromises);
                         console.log('Skill categories order updated successfully!');
+                        // Refresh the categories list to ensure UI is in sync with database
+                        await populateSkillCategories();
                     } catch (error) {
                         console.error('Error updating skill categories order:', error);
+                        confirmDialog.show('Error', `Failed to update skill categories order: ${error.message}. Please try again.`);
                     }
                 }
             });

@@ -83,6 +83,39 @@ body{
     margin-bottom: 1rem;
 }
 
+/* Multi-image upload styles */
+.image-url-input-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.image-url-input-group .project-image-url {
+    flex: 1;
+}
+
+.remove-url-btn {
+    background-color: rgba(255, 0, 0, 0.2);
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+    padding: 0.8rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.remove-url-btn:hover {
+    background-color: rgba(255, 0, 0, 0.3);
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+}
+
+#add-image-url-btn {
+    margin-bottom: 1rem;
+    font-size: 1.4rem;
+    padding: 0.8rem 1.5rem;
+}
+
 
 
 
@@ -829,6 +862,8 @@ section::before {
     height: 100%;
 }
 
+/* Project Card Styles */
+
 /* Animation for all project cards */
 .project-card {
     animation: fadeInScale 0.5s ease-out forwards;
@@ -1013,6 +1048,96 @@ section::before {
     height: auto;
     border-radius: 1rem;
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+/* Carousel Styles */
+.project-image-carousel {
+    position: relative;
+    width: 100%;
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.carousel-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.carousel-item {
+    display: none;
+    width: 100%;
+}
+
+.carousel-item.active {
+    display: block;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0.7; }
+    to { opacity: 1; }
+}
+
+.carousel-item img {
+    width: 100%;
+    height: auto;
+    display: block;
+    transition: transform 0.3s ease;
+}
+
+.carousel-item img:hover {
+    transform: scale(1.02);
+}
+
+.carousel-controls {
+    position: absolute;
+    bottom: 2rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+}
+
+.carousel-control {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: var(--neon-light);
+    border: 1px solid var(--neon-blue);
+    border-radius: 50%;
+    width: 4rem;
+    height: 4rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.carousel-control:hover {
+    background-color: var(--neon-blue);
+    color: var(--neon-black);
+    box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue);
+}
+
+.carousel-indicators {
+    display: flex;
+    gap: 1rem;
+}
+
+.carousel-indicator {
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.carousel-indicator.active {
+    background-color: var(--neon-blue);
+    box-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue);
 }
 
 .back-button {
@@ -1258,6 +1383,42 @@ footer {
     display: flex;
     gap: 3rem;
     margin-top: 4rem;
+}
+
+/* Multi-image upload styles */
+.image-url-input-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.image-url-input-group .project-image-url {
+    flex: 1;
+    margin-right: 10px;
+}
+
+.remove-url-btn {
+    background-color: #ff4757;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.remove-url-btn:hover {
+    background-color: #ff6b81;
+    transform: scale(1.1);
+}
+
+#add-image-url-btn {
+    margin-top: 10px;
+    margin-bottom: 15px;
 }
 
 .admin-sidebar {
