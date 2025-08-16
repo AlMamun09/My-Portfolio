@@ -1059,33 +1059,32 @@ section::before {
     border-radius: 1rem;
     overflow: hidden;
     max-height: 80vh; /* Limit overall carousel height */
-    min-height: 400px; /* Ensure minimum height to prevent content shifting */
     background-color: rgba(0, 0, 0, 0.2); /* Subtle background while loading */
 }
 
 .carousel-inner {
     position: relative;
     width: 100%;
-    height: 100%;
-    min-height: 400px; /* Match the carousel min-height */
+    height: auto;
 }
 
 .carousel-item {
-    display: none;
+    display: block; /* Change from none to block */
     width: 100%;
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 100%;
+    height: 100%; /* Make items fill the container */
     opacity: 0;
     transition: opacity 0.5s ease-in-out;
+    z-index: 0; /* Inactive items are behind */
 }
 
 .carousel-item.active {
-    display: block;
     opacity: 1;
-    z-index: 1;
+    position: relative; /* Change from absolute to relative */
+    z-index: 1; /* Active item is on top */
 }
 
 @keyframes fadeIn {
@@ -1097,7 +1096,6 @@ section::before {
     width: 100%;
     height: auto;
     max-height: 70vh; /* Limit height to prevent scrolling */
-    min-height: 300px; /* Minimum height to maintain structure */
     object-fit: contain;
     display: block;
     transition: opacity 0.5s ease, transform 0.3s ease;
@@ -2124,12 +2122,16 @@ footer {
     
     /* Project details responsive styles */
     .project-image-carousel {
-        max-height: 60vh;
+        max-height: 50vh;
+    }
+    
+    .carousel-inner {
+        height: auto;
     }
     
     .carousel-item img,
     .project-image img {
-        max-height: 50vh;
+        max-height: 45vh;
     }
     
     #project-content {

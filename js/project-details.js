@@ -12,14 +12,10 @@ function initializeCarousel() {
     const prevBtn = carousel.querySelector('.carousel-control.prev');
     const nextBtn = carousel.querySelector('.carousel-control.next');
     
-    // Set fixed height based on the tallest image to prevent content shifting
-    let maxHeight = 400; // Default minimum height
-    
     // Ensure all images are loaded properly and responsively
     const allImages = carousel.querySelectorAll('img');
-    let loadedImages = 0;
     
-    // Preload all images to determine maximum height
+    // Set loading attributes for images
     allImages.forEach(img => {
         // Set first image to eager loading for immediate display
         if (img.parentElement.classList.contains('active')) {
@@ -33,34 +29,16 @@ function initializeCarousel() {
             this.onerror = null;
             this.src = '../images/placeholder.jpg'; // Fallback to placeholder
             console.log('Image failed to load, using placeholder');
-            checkAllImagesLoaded();
         };
         
-        // When image loads, update max height if needed
+        // When image loads, fade it in
         img.onload = function() {
-            // Update max height if this image is taller
-            if (this.naturalHeight > 0 && this.naturalHeight > maxHeight) {
-                maxHeight = Math.min(this.naturalHeight, window.innerHeight * 0.7);
-                carousel.style.height = maxHeight + 'px';
-                carouselInner.style.height = maxHeight + 'px';
-            }
-            
             this.style.opacity = 1;
-            checkAllImagesLoaded();
         };
         
         // Set initial opacity
         img.style.opacity = 0;
     });
-    
-    function checkAllImagesLoaded() {
-        loadedImages++;
-        if (loadedImages === allImages.length) {
-            // All images loaded, set final height
-            carousel.style.height = maxHeight + 'px';
-            carouselInner.style.height = maxHeight + 'px';
-        }
-    }
     
     // Even with one image, we need to handle carousel controls
     if (items.length <= 1) {
@@ -174,6 +152,8 @@ function initializeCarousel() {
             showSlide(currentIndex + 1);
         }, 5000);
     });
+    
+    // No need to adjust height on resize anymore
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -243,9 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         <span class="carousel-indicator active" data-index="0"></span>
                                     </div>
                                 </div>
-                                <div class="carousel-caption">
-                                    <p>${project.title}</p>
-                                </div>`;
+`;
                         } else {
                             // Multiple images - create carousel
                             let carouselItems = '';
@@ -277,9 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         ${indicators}
                                     </div>
                                 </div>
-                                <div class="carousel-caption">
-                                    <p>${project.title}</p>
-                                </div>`;
+`;
                         }
                     })()} 
                 </div>
