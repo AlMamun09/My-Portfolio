@@ -1046,6 +1046,8 @@ section::before {
 .project-image img {
     max-width: 100%;
     height: auto;
+    max-height: 70vh; /* Limit height to prevent scrolling */
+    object-fit: contain;
     border-radius: 1rem;
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
 }
@@ -1056,34 +1058,49 @@ section::before {
     width: 100%;
     border-radius: 1rem;
     overflow: hidden;
+    max-height: 80vh; /* Limit overall carousel height */
+    min-height: 400px; /* Ensure minimum height to prevent content shifting */
+    background-color: rgba(0, 0, 0, 0.2); /* Subtle background while loading */
 }
 
 .carousel-inner {
     position: relative;
     width: 100%;
     height: 100%;
+    min-height: 400px; /* Match the carousel min-height */
 }
 
 .carousel-item {
     display: none;
     width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
 }
 
 .carousel-item.active {
     display: block;
-    animation: fadeIn 0.5s ease-in-out;
+    opacity: 1;
+    z-index: 1;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0.7; }
+    from { opacity: 0; }
     to { opacity: 1; }
 }
 
 .carousel-item img {
     width: 100%;
     height: auto;
+    max-height: 70vh; /* Limit height to prevent scrolling */
+    min-height: 300px; /* Minimum height to maintain structure */
+    object-fit: contain;
     display: block;
-    transition: transform 0.3s ease;
+    transition: opacity 0.5s ease, transform 0.3s ease;
 }
 
 .carousel-item img:hover {
@@ -1092,25 +1109,28 @@ section::before {
 
 .carousel-controls {
     position: absolute;
-    bottom: 2rem;
+    bottom: 1.5rem;
     left: 0;
     right: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 2rem;
+    z-index: 10;
 }
 
 .carousel-control {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7);
     color: var(--neon-light);
-    border: 1px solid var(--neon-blue);
+    border: 2px solid var(--neon-blue);
     border-radius: 50%;
     width: 4rem;
     height: 4rem;
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 10;
+    font-size: 1.5rem;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
     cursor: pointer;
     transition: all 0.3s ease;
 }
@@ -1140,6 +1160,64 @@ section::before {
     box-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue);
 }
 
+.carousel-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 1rem;
+    color: var(--neon-light);
+    text-align: center;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    z-index: 2;
+}
+
+.project-image-carousel:hover .carousel-caption {
+    transform: translateY(0);
+}
+
+/* Improve carousel controls positioning */
+.carousel-control.prev {
+    position: absolute;
+    left: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5rem;
+    height: 5rem;
+}
+
+.carousel-control.next {
+    position: absolute;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5rem;
+    height: 5rem;
+}
+
+/* Make controls more visible */
+.carousel-control i {
+    font-size: 2rem;
+    text-shadow: 0 0 10px var(--neon-blue);
+}
+
+/* Add hover effect for better visibility */
+.carousel-control.prev:hover,
+.carousel-control.next:hover {
+    background-color: var(--neon-blue);
+    color: var(--neon-black);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 0 15px var(--neon-blue), 0 0 30px var(--neon-blue);
+}
+
+.carousel-control:not(.prev):not(.next):hover {
+    background-color: var(--neon-blue);
+    color: var(--neon-black);
+    box-shadow: 0 0 15px var(--neon-blue), 0 0 30px var(--neon-blue);
+}
+
 .back-button {
     margin-bottom: 3rem;
 }
@@ -1166,6 +1244,12 @@ section::before {
 
 .project-overview {
     margin-bottom: 4rem;
+}
+
+.project-overview h3 {
+    font-size: 2.4rem;
+    margin-bottom: 1.5rem;
+    color: var(--neon-blue);
 }
 
 .project-overview p {
@@ -1918,6 +2002,7 @@ footer {
         width: 70vw;
         margin-top: 4rem;
     }
+}
 
 @media (max-width: 991px) {
     .header {
@@ -1944,6 +2029,16 @@ footer {
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
         padding: 2rem;
     }
+    
+    /* Project details responsive styles */
+    .project-image-carousel {
+        max-height: 70vh;
+    }
+    
+    .carousel-item img,
+    .project-image img {
+        max-height: 65vh;
+    }
 }
 
     .skills-box,
@@ -1955,7 +2050,6 @@ footer {
     .projects-container {
         grid-template-columns: 1fr;
     }
-}
 
 @media (max-width: 768px) {
     .header {
@@ -1983,6 +2077,34 @@ footer {
     .contact-box form .input-box input {
         width: 100%;
     }
+    
+    /* Project details responsive styles */
+    .project-details {
+        padding: 100px 5% 5%;
+    }
+    
+    .project-image-carousel {
+        max-height: 65vh;
+    }
+    
+    .carousel-item img,
+    .project-image img {
+        max-height: 60vh;
+    }
+    
+    #project-content {
+        padding: 3rem;
+    }
+    
+    .carousel-controls {
+        bottom: 1rem;
+        gap: 1.5rem;
+    }
+    
+    .carousel-control {
+        width: 3.5rem;
+        height: 3.5rem;
+    }
 }
 
 @media (max-width: 520px) {
@@ -1998,6 +2120,20 @@ footer {
     .heading {
         margin-bottom: 1rem;
         font-size: 3rem;
+    }
+    
+    /* Project details responsive styles */
+    .project-image-carousel {
+        max-height: 60vh;
+    }
+    
+    .carousel-item img,
+    .project-image img {
+        max-height: 50vh;
+    }
+    
+    #project-content {
+        padding: 2rem;
     }
     
     .home-content h1 {

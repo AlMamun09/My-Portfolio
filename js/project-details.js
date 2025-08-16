@@ -12,6 +12,92 @@ function initializeCarousel() {
     const prevBtn = carousel.querySelector('.carousel-control.prev');
     const nextBtn = carousel.querySelector('.carousel-control.next');
     
+    // Set fixed height based on the tallest image to prevent content shifting
+    let maxHeight = 400; // Default minimum height
+    
+    // Ensure all images are loaded properly and responsively
+    const allImages = carousel.querySelectorAll('img');
+    let loadedImages = 0;
+    
+    // Preload all images to determine maximum height
+    allImages.forEach(img => {
+        // Set first image to eager loading for immediate display
+        if (img.parentElement.classList.contains('active')) {
+            img.setAttribute('loading', 'eager');
+        } else {
+            img.setAttribute('loading', 'lazy');
+        }
+        
+        // Handle image load errors
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = '../images/placeholder.jpg'; // Fallback to placeholder
+            console.log('Image failed to load, using placeholder');
+            checkAllImagesLoaded();
+        };
+        
+        // When image loads, update max height if needed
+        img.onload = function() {
+            // Update max height if this image is taller
+            if (this.naturalHeight > 0 && this.naturalHeight > maxHeight) {
+                maxHeight = Math.min(this.naturalHeight, window.innerHeight * 0.7);
+                carousel.style.height = maxHeight + 'px';
+                carouselInner.style.height = maxHeight + 'px';
+            }
+            
+            this.style.opacity = 1;
+            checkAllImagesLoaded();
+        };
+        
+        // Set initial opacity
+        img.style.opacity = 0;
+    });
+    
+    function checkAllImagesLoaded() {
+        loadedImages++;
+        if (loadedImages === allImages.length) {
+            // All images loaded, set final height
+            carousel.style.height = maxHeight + 'px';
+            carouselInner.style.height = maxHeight + 'px';
+        }
+    }
+    
+    // Even with one image, we need to handle carousel controls
+    if (items.length <= 1) {
+        // Prevent default on any links
+        const links = carousel.querySelectorAll('a');
+        links.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+            });
+        });
+        
+        // Make sure controls don't cause page refresh but do nothing for single image
+        if (prevBtn) {
+            prevBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+            });
+        }
+        
+        // Handle indicators for single image
+        indicators.forEach(indicator => {
+            indicator.addEventListener('click', (e) => {
+                e.preventDefault();
+            });
+        });
+        
+        // No need to continue with the rest of the carousel setup
+        return;
+    }
+    // We've already handled image loading in the preload section above
+    // This section is now redundant
+    
     if (items.length <= 1) return; // No need for carousel with only one image
     
     let currentIndex = 0;
@@ -25,9 +111,23 @@ function initializeCarousel() {
         // Update current index
         currentIndex = index;
         
-        // Update active class on items
+        // First, make sure all items are in the DOM but hidden
         items.forEach((item, i) => {
+            // Keep all items in the DOM but only show the active one
+            item.style.display = 'block';
+            item.style.opacity = i === currentIndex ? '1' : '0';
+            item.style.zIndex = i === currentIndex ? '1' : '0';
+            
+            // Update active class for accessibility and styling
             item.classList.toggle('active', i === currentIndex);
+            
+            // Ensure the image in the active slide is visible
+            const img = item.querySelector('img');
+            if (img && i === currentIndex) {
+                // Force eager loading for the active image
+                img.setAttribute('loading', 'eager');
+                img.style.opacity = '1';
+            }
         });
         
         // Update active class on indicators
@@ -38,20 +138,23 @@ function initializeCarousel() {
     
     // Event listeners for controls
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
+        prevBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             showSlide(currentIndex - 1);
         });
     }
     
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
+        nextBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             showSlide(currentIndex + 1);
         });
     }
     
     // Event listeners for indicators
     indicators.forEach((indicator, i) => {
-        indicator.addEventListener('click', () => {
+        indicator.addEventListener('click', (e) => {
+            e.preventDefault();
             showSlide(i);
         });
     });
@@ -126,10 +229,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                         
                         // Generate HTML for images
                         if (imagesToUse.length === 1) {
-                            // Single image - no carousel needed
-                            return `<div class="carousel-item active">
-                                <img src="${imagesToUse[0]}" alt="${project.title}" class="neon-box-glow">
-                            </div>`;
+                            // Single image - still use carousel structure for consistency
+                            return `
+                                <div class="carousel-inner">
+                                    <div class="carousel-item active">
+                                        <img src="${imagesToUse[0]}" alt="${project.title}" class="neon-box-glow" loading="eager">
+                                    </div>
+                                </div>
+                                <div class="carousel-control prev"><i class="fas fa-chevron-left"></i></div>
+                                <div class="carousel-control next"><i class="fas fa-chevron-right"></i></div>
+                                <div class="carousel-controls">
+                                    <div class="carousel-indicators">
+                                        <span class="carousel-indicator active" data-index="0"></span>
+                                    </div>
+                                </div>
+                                <div class="carousel-caption">
+                                    <p>${project.title}</p>
+                                </div>`;
                         } else {
                             // Multiple images - create carousel
                             let carouselItems = '';
@@ -138,7 +254,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             imagesToUse.forEach((img, index) => {
                                 carouselItems += `
                                 <div class="carousel-item${index === 0 ? ' active' : ''}">
-                                    <img src="${img}" alt="${project.title} - Image ${index + 1}" class="neon-box-glow">
+                                    <img 
+                                        src="${img}" 
+                                        alt="${project.title} - Image ${index + 1}" 
+                                        class="neon-box-glow" 
+                                        loading="${index === 0 ? 'eager' : 'lazy'}"
+                                    >
                                 </div>`;
                                 
                                 indicators += `
@@ -149,12 +270,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <div class="carousel-inner">
                                     ${carouselItems}
                                 </div>
+                                <div class="carousel-control prev"><i class="fas fa-chevron-left"></i></div>
+                                <div class="carousel-control next"><i class="fas fa-chevron-right"></i></div>
                                 <div class="carousel-controls">
-                                    <button class="carousel-control prev"><i class="fas fa-chevron-left"></i></button>
                                     <div class="carousel-indicators">
                                         ${indicators}
                                     </div>
-                                    <button class="carousel-control next"><i class="fas fa-chevron-right"></i></button>
+                                </div>
+                                <div class="carousel-caption">
+                                    <p>${project.title}</p>
                                 </div>`;
                         }
                     })()} 
@@ -162,7 +286,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             
             <div class="project-details-content">
-                <div class="project-overview">
+                <div class="project-overview">  
+                    <h3>Project Overview</h3>
                     ${project.fullDescription}
                 </div>
                 
@@ -181,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
                 
                 <div class="project-details-section">
-                    <h3>Challenges & Solutions</h3>
+                    <h3>Future Scope</h3>
                     <ul class="challenges-list">
                         ${project.challenges.map(challenge => `<li>${challenge}</li>`).join('')}
                     </ul>
